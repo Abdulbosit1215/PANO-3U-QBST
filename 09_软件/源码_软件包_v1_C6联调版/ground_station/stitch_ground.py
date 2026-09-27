@@ -1,19 +1,19 @@
-"""地面端精拼接管线
-与星上stitch.py同模型, 但增加:
-- 重叠区ORB特征匹配 + 光流精对齐
-- 多频段亮度融合 (金字塔)
-- 批量处理与视频拼接
+"""Ground-side high-quality stitching pipeline.
+Uses the same model as onboard stitch.py, plus:
+- ORB feature matching in overlap region + optical-flow refinement
+- Multi-band luminance blending (pyramid)
+- Batch processing and video stitching
 """
 import json, sys, os
 import numpy as np
 import cv2
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "payload_cm4"))
-from stitch import PanoStitcher   # 复用星上核心
+from stitch import PanoStitcher   # reuse onboard core
 
 
 def refine_alignment(img0, img1, stitcher):
-    """重叠区特征匹配 -> 微调外参 (返回修正后的误差评估)"""
+    """Feature match in overlap region -> refine extrinsics (returns error estimate)."""
     g0 = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
     g1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     orb = cv2.ORB_create(3000)
@@ -27,13 +27,13 @@ def refine_alignment(img0, img1, stitcher):
         return None
     pts0 = np.float32([kp0[m.queryIdx].pt for m in matches])
     pts1 = np.float32([kp1[m.trainIdx].pt for m in matches])
-    # 仅接受落在重叠带内的匹配 (鱼眼边缘97.5°-15°~97.5°环带)
+    # Accept matches only within overlap band (fisheye edge ring)
     return {"matches": len(matches),
             "mean_dist": float(np.mean([m.distance for m in matches]))}
 
 
 def multiband_blend(base, layer, weight, levels=4):
-    """金字塔多频段融合"""
+    """Pyramid-based multi-band blending."""
     gp_b, gp_l, gp_w = base.copy(), layer.copy(), weight.copy()
     pyr_b, pyr_l, pyr_w = [gp_b], [gp_l], [gp_w]
     for _ in range(levels):
@@ -44,7 +44,7 @@ def multiband_blend(base, layer, weight, levels=4):
         size = (pyr_b[i].shape[1], pyr_b[i].shape[0])
         lp_b.append(cv2.subtract(pyr_b[i], cv2.pyrUp(lp_b[-1], dstsize=size)))
         lp_l.append(cv2.subtract(pyr_l[i], cv2.pyrUp(lp_l[-1], dstsize=size)))
-    # 逐层加权合并
+    # Weighted merge level by level
     blend = []
     for lb, ll, w in zip(lp_b, lp_l, reversed(pyr_w)):
         w3 = np.repeat(w[..., None] if w.ndim == 2 else w, 3, axis=-1)
@@ -69,7 +69,7 @@ def stitch_ground(jpg0_path, jpg1_path, calib_path, out_path, refine=True):
 
 
 def stitch_video(v0, v1, calib_path, out_path, fps=30):
-    """双路视频逐帧拼接 -> 全景视频"""
+    """Stitch dual video streams frame-by-frame into a panoramic video."""
     st = PanoStitcher(calib_path, out_w=3840, out_h=1920)
     c0, c1 = cv2.VideoCapture(v0), cv2.VideoCapture(v1)
     vw = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (3840, 1920))

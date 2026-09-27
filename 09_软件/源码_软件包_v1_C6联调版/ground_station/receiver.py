@@ -1,5 +1,5 @@
-"""地面站接收机: 对接 Direwolf (soundmodem) 或 GQRX+UDP
-Direwolf以KISS TCP(默认8001)输出解调后的AX.25帧, 本模块负责解析
+"""Ground receiver: connects to Direwolf (soundmodem) or GQRX+UDP.
+Direwolf outputs demodulated AX.25 frames via KISS TCP (default 8001); this module parses them.
 """
 import socket, struct, threading, time
 
@@ -33,18 +33,18 @@ class KissReceiver:
 
 
 def parse_ax25(frame: bytes):
-    """解析AX.25 UI帧 -> (src, dst, payload)"""
+    """Parse AX.25 UI frame -> (src, dst, payload)."""
     if len(frame) < 18: return None
     dst = bytes(b >> 1 for b in frame[0:6]).decode("ascii", "replace").strip()
     src = bytes(b >> 1 for b in frame[7:13]).decode("ascii", "replace").strip()
     if frame[14] != 0x03 or frame[15] != 0xF0: return None
-    # KISS TCP 模式 (direwolf 等) 给出的帧已剥离 FCS, 载荷为 frame[16:];
-    # 若对接含 FCS 的原始帧, 改回 frame[16:-2]
+    # In KISS TCP mode (Direwolf, etc.), frames already have FCS stripped; payload is frame[16:];
+    # If using raw frames that include FCS, switch back to frame[16:-2]
     payload = frame[16:]
     return {"src": src, "dst": dst, "payload": payload, "ts": time.time()}
 
 
-# 下行包类型 (与协议规范§2一致)
+# Downlink packet types (matches protocol spec §2)
 PKT_BEACON, PKT_CHUNK, PKT_FLIST, PKT_EVENT = 0x01, 0x02, 0x03, 0x04
 
 def parse_downlink(payload: bytes):

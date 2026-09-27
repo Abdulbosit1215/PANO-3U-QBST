@@ -1,16 +1,16 @@
-"""双鱼眼标定工具 (出厂/实验室用)
+"""Dual-fisheye calibration tool (factory/lab use).
 
-方法: 旋转棋盘格法 —— 相机固定, 棋盘格在鱼眼全视场内旋转≥30姿态
-解算: OpenCV fisheye 模型 (与等距投影+多项式等价描述), 输出 calibration.json
+Method: rotating checkerboard with fixed camera and >=30 board poses across full fisheye FOV.
+Solver: OpenCV fisheye model (equivalent parameterization to equidistant + polynomial distortion), outputs calibration.json.
 
-用法: python3 calibrate.py --images calib_shots/cam0/*.jpg --cam cam0 --out calibration.json
+Usage: python3 calibrate.py --images calib_shots/cam0/*.jpg --cam cam0 --out calibration.json
 """
 import argparse, glob, json
 import numpy as np
 import cv2
 
-BOARD = (9, 6)          # 棋盘格内角点
-SQUARE_M = 0.025        # 格边长25mm
+BOARD = (9, 6)          # checkerboard inner corners
+SQUARE_M = 0.025        # square side length: 25 mm
 
 def collect_points(images):
     objp = np.zeros((BOARD[0]*BOARD[1], 3), np.float32)
@@ -28,21 +28,21 @@ def collect_points(images):
 def calibrate(images, out_w_h):
     objps, imgps, shape = collect_points(images)
     if len(objps) < 15:
-        raise RuntimeError(f"有效标定帧不足: {len(objps)}<15, 重拍")
+        raise RuntimeError(f"Not enough valid calibration frames: {len(objps)}<15, recapture required")
     K = np.zeros((3, 3)); D = np.zeros((4, 1))
     rms, K, D, _, _ = cv2.fisheye.calibrate(
         objps, imgps, shape, K, D, None, None,
         cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC + cv2.fisheye.CALIB_FIX_SKEW)
-    print(f"[calib] RMS = {rms:.3f} px (要求<0.5)")
-    # 转为等距投影参数: f取K[0,0], 主点cx,cy; 畸变用k1-k4近似
+    print(f"[calib] RMS = {rms:.3f} px (requirement <0.5)")
+    # Convert to equidistant parameters: f=K[0,0], principal point cx/cy, distortion approximated by k1-k4
     return {"f": float(K[0,0]), "cx": float(K[0,2]), "cy": float(K[1,2]),
             "k1": float(D[0,0]), "k2": float(D[1,0]),
             "k3": float(D[2,0]), "k4": float(D[3,0]),
-            "R": [1,0,0, 0,1,0, 0,0,1]}   # 外参由双机联合标定覆盖
+            "R": [1,0,0, 0,1,0, 0,0,1]}   # extrinsics are overwritten by stereo calibration
 
 def stereo_extrinsic(calib0, calib1):
-    """双机对置: 光轴反向, 绕Z轴roll由旋转标定确定
-       简化: 两相机R相差180°绕Y (背对背), 精值由恒星在轨标定修正"""
+    """Dual-camera opposite mounting: optical axes opposite, roll around Z from rotation calibration.
+       Simplification: cam R differs by 180° about Y (back-to-back), fine value corrected by on-orbit star calibration."""
     calib1["R"] = [-1,0,0, 0,1,0, 0,0,-1]   # Ry(180°)
     return calib0, calib1
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     ap.add_argument("--images", required=True)
     ap.add_argument("--cam", required=True, choices=["cam0", "cam1"])
     ap.add_argument("--out", default="calibration.json")
-    ap.add_argument("--stereo", action="store_true", help="合并双机并写外参")
+    ap.add_argument("--stereo", action="store_true", help="merge both cameras and write extrinsics")
     a = ap.parse_args()
 
     cal = calibrate(sorted(glob.glob(a.images)), None)
