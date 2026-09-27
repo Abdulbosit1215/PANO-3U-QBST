@@ -1,62 +1,60 @@
-# PANO-3U 结构力学校核报告
+# PANO-3U Structural Mechanics Verification Report
 
-**版本 B / 2026-09　|　方法：解析法（梁模型 + Miles 方程 + 螺钉强度），发射前须以 FEA 复核电测数据为准**
+**Version B / 2026-09 | Method: analytical baseline (beam model + Miles equation + fastener checks); pre-flight closure requires FEA correlation and test data**
 
-## 1. 输入条件
+## 1. Inputs
 
-| 项 | 取值 | 来源 |
+| Item | Value | Source |
 |---|---|---|
-| 总质量 | 2.2 kg（含 25% 裕量） | 质量预算 |
-| 包络 | 100×100×340.5 mm | CDS Rev.14 |
-| 结构材料 | 6061-T6，E=68.9 GPa，ρ=2700，σy=276 MPa | MMPDS |
-| 准静态 | 10 g（三向包络） | 典型搭载要求 |
-| 随机振动 | GEVS 鉴定级 14.1 gRMS，PSD 平台 0.16 g²/Hz | GSFC-STD-7000 |
-| 一阶频率要求 | ≥100 Hz | 避免与火箭耦合 |
+| Total mass | 2.2 kg (incl. 25% margin) | mass budget |
+| Envelope | 100×100×340.5 mm | CDS Rev.14 |
+| Material | 6061-T6, E=68.9 GPa, ρ=2700, σy=276 MPa | MMPDS |
+| Quasi-static | 10 g (3-axis envelope) | typical launch constraint |
+| Random vibration | GEVS qualification 14.1 gRMS | GSFC-STD-7000 |
+| 1st mode requirement | ≥100 Hz | launch coupling control |
 
-## 2. 一阶频率（梁模型）
+## 2. First Mode Frequency (Beam Model)
 
-4 根 8.5×8.5 导轨并联抗弯，含移轴项（d=45.75 mm）：
-I_total = 4×(8.5⁴/12) + 4×72.25×45.75² = **606,635 mm⁴**
+Four 8.5×8.5 rails in parallel with offset inertia terms.
 
-- 悬臂模型（保守）：f₁ = (1.875²/2π)·√(EI/wL⁴) = **388 Hz**
-- 简支模型（上限）：f₁ = **1090 Hz**
-- 实际边界介于两者之间，即便按悬臂也 **3.9 倍于 100 Hz 要求** ✅
+- Cantilever conservative model: **f1 = 388 Hz**
+- Simply supported upper bound: **f1 = 1090 Hz**
+- Even conservative case exceeds 100 Hz requirement.
 
-## 3. 准静态 10 g
+## 3. Quasi-static 10 g Checks
 
-| 校核项 | 载荷/应力 | 许用 | 安全系数 |
+| Item | Load/Stress | Allowable | Safety Factor |
 |---|---|---|---|
-| 导轨轴向压应力 | 0.75 MPa | 276 MPa | 368 |
-| 导轨压杆屈曲 | 临界 10,206 N vs 实际 54 N | — | 189 |
-| 侧板面内应力（1.5 mm） | ≈12 MPa | 276 MPa | 23 |
+| Rail axial compression | 0.75 MPa | 276 MPa | 368 |
+| Rail buckling | critical 10,206 N vs actual 54 N | — | 189 |
+| Side panel stress | ~12 MPa | 276 MPa | 23 |
 
-## 4. 随机振动（Miles 方程，Q=10，fn=150 Hz 保守取值）
+## 4. Random Vibration (Miles, Q=10, fn=150 Hz conservative)
 
-- 输出响应 **19.4 gRMS**，3σ 峰值 **58 g**
-- 最不利集中质量：电池组 0.5 kg → 286 N 惯性力
+- Output response: **19.4 gRMS**, 3σ peak **58 g**
+- Worst lumped mass case (battery group): inertial load 286 N
 
-## 5. 紧固件校核（随机振动 3σ 工况）
+## 5. Fastener Checks (3σ random-vibration case)
 
-| 连接 | 单钉载荷 | 应力 | A2-70 许用 | 安全系数 |
+| Joint | Per-fastener load | Stress | Allowable (A2-70) | Safety Factor |
 |---|---|---|---|---|
-| 电池支架 4×M3（剪切） | 71.5 N | 10.1 MPa | 310 MPa | 31 |
-| 侧板 F2 沉头 M3×10（拉伸） | 8.6 N | 1.7 MPa | 450 MPa | 258 |
-| 镜座 M2×4 | 7.1 N | 3.6 MPa | 450 MPa | 125 |
+| Battery bracket 4×M3 shear | 71.5 N | 10.1 MPa | 310 MPa | 31 |
+| Side panel F2 M3 tension | 8.6 N | 1.7 MPa | 450 MPa | 258 |
+| Lens mount M2×4 | 7.1 N | 3.6 MPa | 450 MPa | 125 |
 
-全部安全系数 **≥30**（含力矩预紧后仍充分）✅
+All safety factors ≥30 in this baseline check.
 
-## 6. 结论与遗留项
+## 6. Conclusions and Remaining Requirement
 
-1. 结构静强度、稳定性、刚度（频率）、紧固件全部满足，裕量充分；
-2. 本报告为解析法先行版。**发射服务商审查通常要求 FEA 报告**——建议用交付的 STEP 装配体在 ANSYS/ABAQUS 中做模态+随机振动分析复核（网格 2 mm，导轨接触面绑定，PCB 以质量点等效）；
-3. 鉴定级振动试验后复测一阶频率（衰减 <5% 判合格）并全数检查螺钉见证标记。
-
+1. Strength, stability, stiffness, and fastener margins are acceptable in analytical baseline.
+2. Launcher reviews typically require FEA modal/random-vibration reports (ANSYS/ABAQUS suggested).
+3. After qualification vibration, remeasure first mode (decay <5%) and inspect all witness marks.
 
 ---
 
-## v4 补遗（设计评审后仿真复算）
+## v4 Addendum (Post-Review Recalculation)
 
-1. **质量修正**：按几何体积重建的干质量为 2.36 kg（早期 BOM 估算 1.73 kg 低估了导轨/侧板实重），发射质量取 2.83 kg（+20% 裕量）。本报告各项载荷按质量线性放大 ≈10%，所有安全系数仍 ≥25，结论不变。
-2. **基频修正**：计入侧板弯曲刚度后全截面 I=1.354×10⁶ mm⁴（原仅计导轨 0.607×10⁶），梁有限元（24 单元+集中质量）复算 **f1=611 Hz**（悬臂），比原解析值 388 Hz 更高，结论更宽裕。
-3. **随机振动**：GEVS 包络下 Miles 响应 39.2 gRMS（3σ=118 g）；相机支架 M2×4 螺钉剪切 SF=52，电池支架 M3×4 SF=36，导轨压应力 SF=76，屈曲 SF≫100。
-4. 数据文件见 `仿真数据/结构_强度裕度表.csv`。
+1. **Mass correction:** dry mass revised to 2.36 kg by geometric rebuild; launch mass 2.83 kg with margin. Safety factors remain ≥25.
+2. **Frequency correction:** including side-panel stiffness gives **f1 = 611 Hz** (beam FE), higher than prior 388 Hz conservative estimate.
+3. **Random vibration update:** 39.2 gRMS (3σ=118 g) with still-acceptable margin table.
+4. Supporting data: `仿真数据/结构_强度裕度表.csv`.

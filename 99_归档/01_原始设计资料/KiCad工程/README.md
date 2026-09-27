@@ -1,38 +1,38 @@
-# PANO-3U KiCad 工程 README
+# PANO-3U KiCad Project README
 
-**版本 B / 2026-09**　|　KiCad 7.0+ 打开 `PANO-3U.kicad_pro`
+**Version B / 2026-09** | Open with KiCad 7.0+ using `PANO-3U.kicad_pro`
 
-## 工程结构
+## Project Structure
 
-| 文件 | 内容 |
+| File | Content |
 |---|---|
-| `PANO-3U.kicad_pro` | 工程文件（双击打开） |
-| `PANO-3U.kicad_sch` | 根图：4 块板的层次化入口 |
-| `eps.kicad_sch` | E8 EPS 电源板（47 元件：LT3652×4 MPPT、LTC4412 理想二极管、TPS54331 5V/3A、TLV70233、TPS2553×4 电子保险丝、INA226×4 遥测） |
-| `obc.kicad_sch` | E7 OBC 主控板（22 元件：STM32F405、TPS3823 看门狗、W25Q128、DS3231、MPU9250、QMC5883L、DRV8837×3） |
-| `comm.kicad_sch` | E9 UHF 通信板（Si4463 模块 + RA07H4452M 1W PA + PE4259 收发切换 + SAW 滤波 + 30MHz TCXO） |
-| `cm4_carrier.kicad_sch` | E2 CM4 载板（CM4 连接器、双 22P 相机 FPC、TPS22965 负载开关、microSD） |
-| `PANO-3U.kicad_sym` | 项目符号库（18 个自定义 IC 符号） |
-| `sym-lib-table` | 库映射（已配置，勿删） |
-| `预览图/` | 四张原理图预览 PNG（无需 KiCad 即可查看连接关系） |
+| `PANO-3U.kicad_pro` | Project file (open directly) |
+| `PANO-3U.kicad_sch` | Root schematic: hierarchical entry for 4 boards |
+| `eps.kicad_sch` | E8 EPS board (47 parts: LT3652×4 MPPT, LTC4412 ideal diode, TPS54331 5V/3A, TLV70233, TPS2553×4 e-fuse, INA226×4 telemetry) |
+| `obc.kicad_sch` | E7 OBC board (22 parts: STM32F405, TPS3823 watchdog, W25Q128, DS3231, MPU9250, QMC5883L, DRV8837×3) |
+| `comm.kicad_sch` | E9 UHF comm board (Si4463 module + RA07H4452M 1W PA + PE4259 T/R switch + SAW filter + 30MHz TCXO) |
+| `cm4_carrier.kicad_sch` | E2 CM4 carrier (CM4 connector, dual 22P camera FPC, TPS22965 load switch, microSD) |
+| `PANO-3U.kicad_sym` | Project symbol library (18 custom IC symbols) |
+| `sym-lib-table` | Library mapping (preconfigured, do not delete) |
+| `预览图/` | Four schematic preview PNGs |
 
-## 设计约定
+## Design Conventions
 
-- **四块板对应四块独立 PCB**（各 90×90 mm、4 层、Tg150、沉金），经 J1 2×20P 堆栈总线互联；
-- 网络连接方式为**网络标签**（label）连通：同名标签即同一网络，KiCad 中可直接生成正确网表；
-- J1 引脚定义与《电子系统设计规格书》§0 完全一致，四块板的 J1 网络名逐一对应。
+- Four schematics correspond to four independent PCBs (each 90×90 mm, 4-layer, Tg150, ENIG), interconnected by J1 2×20P stack bus.
+- Connectivity is label-based: same label means same net.
+- J1 pin definitions are aligned with the Electrical System Design Specification §0.
 
-## ⚠️ 投板前必须完成的核对清单
+## ⚠️ Mandatory Checklist Before PCB Fabrication
 
-1. **自定义符号引脚号为逻辑编号**（PANO-3U 库中 18 个符号）：Layout 前必须按器件数据手册把每个引脚号映射到正确封装焊盘，重点核对：
-   - LT3652（MSOP-12EP 实际封装，图中 DFN16 占位需改）
-   - STM32F405RGT6（LQFP-64 实际引脚号，符号内为逻辑序号）
-   - RA07H4452M、PE4259、Si4463 模块
-2. R/C/L/D/连接器使用 **KiCad 官方库符号**，引脚映射天然正确；
-3. 打开工程后运行 **ERC**（检查 → 电气规则），全绿后再画板；
-4. 电源完整性：5 V 走线 ≥0.5 mm 宽（或敷铜），VBAT ≥0.8 mm；MIPI 差分对 100 Ω 等长 ±0.5 mm；
-5. CM4 双相机：CAM1 为 2-lane，原理图中相机 2 的 D2/D3 已按规格书要求断开（不连接），量产前需在树莓派平台实测 4K30 带宽，不足则按规格书备选方案（CM5 或 USB3 相机）切换。
+1. **Custom symbol pin IDs are logical IDs** (18 symbols in PANO-3U library). Before layout, map each symbol pin to the correct package pad from datasheets.
+   - LT3652 (actual MSOP-12EP package; DFN16 placeholder in schematic must be replaced)
+   - STM32F405RGT6 (actual LQFP-64 pin numbering)
+   - RA07H4452M / PE4259 / Si4463 module pins
+2. R/C/L/D/connectors use **official KiCad symbols**, so pin mapping is correct by default.
+3. Run **ERC** and resolve all issues before PCB layout.
+4. Power integrity: 5 V traces ≥0.5 mm (or copper pour), VBAT ≥0.8 mm; MIPI differential pair 100 Ω with length matching ±0.5 mm.
+5. CM4 dual-camera: CAM1 is 2-lane; camera 2 D2/D3 are disconnected per spec. Verify 4K30 bandwidth on Raspberry Pi platform before production; if insufficient, switch to CM5 or USB3 camera backup path.
 
-## 与图纸/BOM 的一致性
+## Consistency with Drawings and BOM
 
-本工程网络名、位号与 `PANO-3U_全级BOM清单.xlsx`（E 系列编号）和《电子系统设计规格书》逐条对应；改动任何一处请三处同步。
+Net names and reference designators in this project correspond line-by-line with `PANO-3U_全级BOM清单.xlsx` (E-series IDs) and the Electrical System Design Specification. If one changes, synchronize all related sources.

@@ -10,13 +10,8 @@ Date: 2026-09-27
 ## 2) Completed in This Pass
 - Translation policy defined: `TRANSLATION_POLICY.md`
 - Priority inventory created: `TRANSLATION_INVENTORY.md`
-- Priority 1 documents translated to English:
-  - top-level `README.md`
-  - top-level publish guide
-  - KiCad README
-  - software package README
-  - OBC firmware README
-  - communication protocol specification
+- Priority 1 documents translated to English (top-level + software/KiCad docs)
+- Archive Markdown set under `99_归档/01_原始设计资料/` translated to English
 
 ## 3) Consistency Checks Performed
 - Preserved IDs/codes/commands/protocol constants.
@@ -24,7 +19,6 @@ Date: 2026-09-27
 - Maintained command examples and deployment flow semantics.
 
 ## 4) Pending / Risky Areas
-- Archive markdown set under `99_归档` remains untranslated.
 - Binary deliverables (.docx/.xlsx/.pdf) remain untranslated.
 - Drawing text layers in images/SVG remain untranslated.
 - In-code user-facing string translation (Priority 2) not yet executed.
