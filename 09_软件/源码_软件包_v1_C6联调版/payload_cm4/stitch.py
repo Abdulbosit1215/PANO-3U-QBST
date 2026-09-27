@@ -1,16 +1,16 @@
-"""双鱼眼全景拼接 (星上快视级 + 地面精拼接共用核心)
+"""Dual-fisheye panorama stitching (shared core for onboard quick preview and ground high-quality stitching).
 
-模型: 等距投影鱼眼  r = f * theta
-标定文件 calibration.json 结构:
+Model: equidistant fisheye projection  r = f * theta
+Calibration file calibration.json format:
 {
-  "cam0": {"f": px_focal, "cx": .., "cy": .., "k1..k4": 畸变修正,
-           "R": 3x3旋转(相对全景坐标系)},
+  "cam0": {"f": px_focal, "cx": .., "cy": .., "k1..k4": distortion terms,
+           "R": 3x3 rotation (relative to panorama frame)},
   "cam1": {...},
   "pano": {"w": 5760, "h": 2880}
 }
 
-拼接流程: 对每个全景输出像素(lon,lat) → 视线方向向量v → 由cam外参R变换到
-相机系 → 检查在FOV内 → 鱼眼投影+畸变 → 取像素 → 重叠区加权融合
+Pipeline: for each panorama pixel (lon, lat) -> direction vector v -> transform by camera extrinsic R
+into camera frame -> FOV check -> fisheye projection + distortion -> sample pixel -> weighted blending in overlap region
 """
 import json
 import numpy as np
@@ -30,7 +30,7 @@ class PanoStitcher:
         self._build_maps()
 
     def _build_maps(self):
-        """预计算两张重映射表 + 融合权重 (开机一次, 之后查表加速)"""
+        """Precompute two remap tables + blend weights (once at startup, then table lookup)."""
         w, h = self.out_w, self.out_h
         lon = (np.arange(w) / w - 0.5) * 2 * np.pi          # [-pi, pi]
         lat = (0.5 - np.arange(h) / h) * np.pi              # [pi/2, -pi/2]
@@ -40,11 +40,11 @@ class PanoStitcher:
         self.weights = []
         for cam in self.cams:
             R = np.asarray(cam["R"]).reshape(3, 3)
-            Vc = V @ R.T                                     # 相机系方向
+            Vc = V @ R.T                                     # direction in camera frame
             z = Vc[..., 2]
-            theta = np.arccos(np.clip(z, -1, 1))             # 离轴角
+            theta = np.arccos(np.clip(z, -1, 1))             # off-axis angle
             phi = np.arctan2(Vc[..., 1], Vc[..., 0])
-            # 等距投影 + 4阶畸变修正
+            # Equidistant projection + 4th-order distortion correction
             f, cx, cy = cam["f"], cam["cx"], cam["cy"]
             k1, k2, k3, k4 = (cam.get(f"k{i}", 0.0) for i in range(1, 5))
             th = theta * (1 + k1 * theta**2 + k2 * theta**4
@@ -52,17 +52,17 @@ class PanoStitcher:
             r = f * th
             mx = (cx + r * np.cos(phi)).astype(np.float32)
             my = (cy + r * np.sin(phi)).astype(np.float32)
-            # 视场外掩码 (FOV 195°, 余量2°)
+            # Out-of-FOV mask (FOV 195°, keep 2° margin)
             valid = theta < np.radians(97.5 - 2.0)
             mx[~valid] = -1; my[~valid] = -1
             self.maps.append((mx, my))
-            # 融合权重: 离轴越小权重越大, 重叠区平滑过渡
+            # Blend weight: smaller off-axis angle gets higher weight; smooth overlap transition
             wgt = np.clip((np.radians(97.5) - theta) / np.radians(15), 0, 1)
             wgt[~valid] = 0
             self.weights.append(wgt.astype(np.float32))
 
     def stitch(self, img0, img1):
-        """拼接两帧鱼眼图 → equirectangular 全景图"""
+        """Stitch two fisheye frames into an equirectangular panorama."""
         acc = np.zeros((self.out_h, self.out_w, 3), np.float32)
         wsum = np.zeros((self.out_h, self.out_w), np.float32)
         for img, (mx, my), wgt in zip((img0, img1), self.maps, self.weights):
@@ -74,13 +74,13 @@ class PanoStitcher:
         return (acc / wsum[..., None]).astype(np.uint8)
 
     def quick_preview(self, img0, img1, width=1024):
-        """快视全景 (下传用): 降分辨率后拼接"""
+        """Quick preview panorama (for downlink): stitch after downscaling."""
         pano = self.stitch(img0, img1)
         return cv2.resize(pano, (width, width // 2))
 
 
 def stitch_pair(jpg0_bytes, jpg1_bytes, calib_path, out_w=5760, out_h=2880):
-    """便捷函数: 从JPEG字节直接出全景"""
+    """Convenience function: generate panorama directly from JPEG bytes."""
     i0 = cv2.imdecode(np.frombuffer(jpg0_bytes, np.uint8), cv2.IMREAD_COLOR)
     i1 = cv2.imdecode(np.frombuffer(jpg1_bytes, np.uint8), cv2.IMREAD_COLOR)
     st = PanoStitcher(calib_path, out_w, out_h)

@@ -1,4 +1,4 @@
-"""图像文件重组: 收块、位图跟踪、缺失重传请求、落盘"""
+"""Image file reassembly: chunk intake, bitmap tracking, missing-chunk request, and file output."""
 import os, zlib, struct, json, time
 
 CHUNK = 200
@@ -12,7 +12,7 @@ class FileAssembler:
         self._restore()
 
     def _restore(self):
-        """断电恢复: 已收块存盘, 重启续收"""
+        """Power-loss recovery: persist received chunks and resume after restart."""
         if os.path.exists(self.state_path):
             st = json.load(open(self.state_path))
             for fid, info in st.items():
@@ -39,7 +39,7 @@ class FileAssembler:
         json.dump(st, open(self.state_path, "w"))
 
     def feed(self, pkt):
-        """喂入一个chunk包; 返回完成文件路径或None"""
+        """Feed one chunk packet; return completed file path or None."""
         fid, no = pkt["file_id"], pkt["chunk_no"]
         p = self.pending.setdefault(fid, {"total": pkt["total"], "chunks": {}})
         p["total"] = pkt["total"]
@@ -65,12 +65,12 @@ class FileAssembler:
         return path
 
     def missing_list(self, fid):
-        """生成缺失块清单 -> 上行REQ_MISSING载荷"""
+        """Generate missing chunk list -> uplink REQ_MISSING payload."""
         p = self.pending.get(fid)
         if not p: return None
         missing = [i for i in range(p["total"]) if i not in p["chunks"]]
         body = struct.pack("<IHH", fid, len(missing), 0)
-        body += b"".join(struct.pack("<H", m) for m in missing[:120])  # 单帧上限
+        body += b"".join(struct.pack("<H", m) for m in missing[:120])  # single-frame limit
         return body
 
     def progress(self):

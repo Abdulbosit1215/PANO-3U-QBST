@@ -1,4 +1,4 @@
-"""存储管理: 文件登记、分块表、空间回收、断电保护"""
+"""Storage manager: file registry, chunk metadata, space reclamation, power-loss protection."""
 import os, json, time, zlib, threading
 
 class StorageManager:
@@ -15,16 +15,16 @@ class StorageManager:
             try:
                 return json.load(open(self.index_path))
             except Exception:
-                # 索引损坏: 备份后重建, 不丢已存文件
+                # Corrupted index: back it up and rebuild without losing stored files
                 os.rename(self.index_path, self.index_path + f".bad.{int(time.time())}")
         return {"next_id": 1, "files": {}}
 
     def _save(self):
         tmp = self.index_path + ".tmp"
         json.dump(self.index, open(tmp, "w"))
-        os.replace(tmp, self.index_path)   # 原子写, 防断电损坏
+        os.replace(tmp, self.index_path)   # atomic write to reduce power-loss corruption risk
 
-    # ---------- 文件登记 ----------
+    # ---------- File registration ----------
     def register(self, path, kind, meta=None):
         """kind: pano_jpg / video / dng / preview"""
         with self._lock:
@@ -44,7 +44,7 @@ class StorageManager:
         return [(int(fid), f["size"], f["ts"], f["kind"])
                 for fid, f in files[offset:offset + limit]]
 
-    # ---------- 分块下传 ----------
+    # ---------- Chunked downlink ----------
     CHUNK = 200
     def prep_file(self, fid):
         f = self.index["files"].get(str(fid))
@@ -70,18 +70,18 @@ class StorageManager:
                 crc = zlib.crc32(blk, crc)
         return crc & 0xFFFFFFFF
 
-    # ---------- 空间管理 ----------
+    # ---------- Space management ----------
     def free_mb(self):
         st = os.statvfs(self.data_dir)
         return st.f_bavail * st.f_frsize // (1024 * 1024)
 
     def ensure_space(self, need_mb):
-        """空间不足时删除最老的已下载文件"""
+        """Delete oldest downloaded files when space is insufficient."""
         while self.free_mb() < need_mb + self.reserve_mb:
             victims = [(f["ts"], fid) for fid, f in self.index["files"].items()
                        if f["downloaded"]]
             if not victims:
-                return False      # 没有可删的, 让上层报错
+                return False      # nothing to delete; let upper layer report error
             _, fid = min(victims)
             self.delete(int(fid))
         return True

@@ -1,17 +1,17 @@
-"""双相机采集模块 (picamera2 + libcamera)
-- 双鱼眼同步采集 (硬件同步: 两相机FSIN并接到CM4 GPIO4, 误差<1ms)
-- 支持 RAW(DNG) + JPEG 拍照, H.265 视频
+"""Dual-camera capture module (picamera2 + libcamera).
+- Synchronized dual-fisheye capture (hardware sync: both FSIN lines tied to CM4 GPIO4, error <1 ms)
+- Supports RAW (DNG) + JPEG still capture and H.265 video
 """
 import time, io, threading
 import numpy as np
 
 try:
     from picamera2 import Picamera2
-    from picamera2.encoders import H264Encoder  # H.265需libav后端
+    from picamera2.encoders import H264Encoder  # H.265 requires libav backend
     from picamera2.outputs import FileOutput
     ON_TARGET = True
 except ImportError:
-    ON_TARGET = False   # 开发/测试环境 (地面PC)
+    ON_TARGET = False   # development/test environment (ground PC)
 
 
 class DualFisheyeCamera:
@@ -48,9 +48,9 @@ class DualFisheyeCamera:
                 self.ok[idx] = False
                 print(f"[camera] cam{idx} init fail: {e}")
 
-    # ---------- 拍照 ----------
+    # ---------- Still capture ----------
     def shoot(self, tag=None):
-        """双机同步拍摄, 返回 {idx: (jpeg_bytes, dng_path_or_None)}"""
+        """Capture both cameras synchronously, return {idx: (jpeg_bytes, dng_path_or_None)}."""
         ts = time.strftime("%Y%m%d_%H%M%S") if tag is None else tag
         out = {}
         with self._lock:
@@ -59,7 +59,7 @@ class DualFisheyeCamera:
                 cam = getattr(self, f"cam{idx}", None)
                 if cam is None or not self.ok[idx]:
                     continue
-                jobs[idx] = cam.capture_request()   # 请求式采集保证同步
+                jobs[idx] = cam.capture_request()   # request-based capture helps preserve sync
             for idx, req in jobs.items():
                 try:
                     buf = io.BytesIO()
@@ -75,9 +75,9 @@ class DualFisheyeCamera:
                     self.ok[idx] = False
         return ts, out
 
-    # ---------- 视频 ----------
+    # ---------- Video ----------
     def start_video(self, path_fmt, duration_s):
-        """双路H.265录像. path_fmt含{idx}占位"""
+        """Dual-stream H.265 recording. path_fmt includes {idx} placeholder."""
         with self._lock:
             for idx in (0, 1):
                 cam = getattr(self, f"cam{idx}", None)
@@ -107,7 +107,7 @@ class DualFisheyeCamera:
         return any(v is not None for v in self._rec.values())
 
     def temperature(self, idx):
-        """传感器温度; 平台上读IMX477驱动或板载NTC"""
+        """Sensor temperature; on target read IMX477 driver or onboard NTC."""
         if ON_TARGET:
             try:
                 with open(f"/sys/class/thermal/thermal_zone{idx+1}/temp") as f:

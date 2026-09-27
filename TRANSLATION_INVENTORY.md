@@ -11,8 +11,6 @@ Generated: 2026-09-27
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/README.md`
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/obc_firmware/README.md`
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/docs/通信协议规范.md`
-
-### Completed
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/99_归档/01_原始设计资料/KiCad工程/README.md`
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/99_归档/01_原始设计资料/PANO-3U详细设计说明书.md`
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/99_归档/01_原始设计资料/PANO-3U电子系统设计规格书.md`
@@ -22,10 +20,13 @@ Generated: 2026-09-27
 
 ## Priority 2 — In-code User-facing Strings
 
-### Pending scan/translation targets
+### Completed (Python)
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/payload_cm4/*.py`
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/ground_station/*.py`
+
+### Pending
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/obc_firmware/Core/Src/*.c`
+- `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/obc_firmware/Core/Inc/*.h`
 
 ## Priority 3 — Binary Deliverables and Drawing Text Layers
 
