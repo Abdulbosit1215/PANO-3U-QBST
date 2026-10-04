@@ -1,6 +1,6 @@
 # Translation Inventory
 
-Generated: 2026-09-27
+Generated: 2026-10-04
 
 ## Priority 1 — Visible Markdown and Software Docs
 
@@ -24,7 +24,7 @@ Generated: 2026-09-27
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/payload_cm4/*.py`
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/ground_station/*.py`
 
-### Pending
+### Completed (Firmware C/H)
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/obc_firmware/Core/Src/*.c`
 - `/home/runner/work/PANO-3U-QBST/PANO-3U-QBST/09_软件/源码_软件包_v1_C6联调版/obc_firmware/Core/Inc/*.h`
 

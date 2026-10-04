@@ -1,7 +1,7 @@
 /**
- * PANO-3U - UHF通信 (AX.25封装 + 文件断点续传)
- * 物理层: Si4463 GFSK 9600bps, OBC经UART1向通信板发送数据流
- * AX.25 UI帧在OBC软件内完成HDLC封装(标志/位填充/FCS)
+ * PANO-3U - UHF communication (AX.25 encapsulation + resumable file transfer)
+ * PHY: Si4463 GFSK 9600bps, OBC streams data to comm board over UART1
+ * AX.25 UI frames are HDLC-wrapped in OBC software (flag/bit-stuff/FCS)
  */
 #include "comm.h"
 #include "main.h"
@@ -32,12 +32,12 @@ static uint16_t fcs_update(uint16_t fcs, uint8_t b)
     return (fcs >> 8) ^ fcs_table[(fcs ^ b) & 0xFF];
 }
 
-/* HDLC发送: 位填充 + FLAG */
+/* HDLC transmit: bit stuffing + FLAG */
 static void hdlc_send_byte(uint8_t b)
 {
     static int ones = 0;
-    /* 简化实现: 实际位填充在Si4463同步模式下由FPGA式bit流完成;
-       此处采用异步帧模式: 数据送通信板, 由板上逻辑处理位填充 */
+    /* Simplified implementation: actual bit-stuffing is handled in Si4463 sync mode by FPGA-like bitstream logic;
+       here we use async frame mode: send bytes to comm board and let onboard logic handle bit-stuffing */
     HAL_UART_Transmit(&huart1, &b, 1, 10);
 }
 
@@ -48,8 +48,8 @@ void ax25_send_ui(const uint8_t *info, uint16_t len)
     hdlc_send_byte(HDLC_FLAG);
     for (int i = 0; i < 7; i++) { fcs = fcs_update(fcs, CALL_GND[i]); hdlc_send_byte(CALL_GND[i]); }
     for (int i = 0; i < 7; i++) { fcs = fcs_update(fcs, CALL_SAT[i]); hdlc_send_byte(CALL_SAT[i]); }
-    fcs = fcs_update(fcs, 0x03); hdlc_send_byte(0x03);   /* UI帧控制字 */
-    fcs = fcs_update(fcs, 0xF0); hdlc_send_byte(0xF0);   /* PID: 无层3 */
+    fcs = fcs_update(fcs, 0x03); hdlc_send_byte(0x03);   /* UI frame control byte */
+    fcs = fcs_update(fcs, 0xF0); hdlc_send_byte(0xF0);   /* PID: no layer-3 */
     for (uint16_t i = 0; i < len; i++) {
         fcs = fcs_update(fcs, info[i]);
         hdlc_send_byte(info[i]);
@@ -60,7 +60,7 @@ void ax25_send_ui(const uint8_t *info, uint16_t len)
     hdlc_send_byte(HDLC_FLAG);
 }
 
-/* ---- 下行文件队列 ---- */
+/* ---- Downlink file queue ---- */
 #define DL_MAX 8
 static struct {
     uint32_t file_id;
@@ -75,7 +75,7 @@ void comm_init(void)
     dl_count = 0;
 }
 
-/* 信标: 30s周期 */
+/* Beacon: 30s period */
 void comm_queue_beacon(void)
 {
     uint8_t buf[64];
@@ -87,7 +87,7 @@ void comm_queue_beacon(void)
     buf[5] = g_sat.vbat_mv & 0xFF; buf[6] = g_sat.vbat_mv >> 8;
     buf[7] = g_sat.ibat_ma & 0xFF; buf[8] = (g_sat.ibat_ma >> 8) & 0xFF;
     memcpy(&buf[9], g_sat.temp, 6);
-    /* 姿态: 量化到0.5deg/s */
+    /* Attitude: quantized to 0.5deg/s */
     for (int i = 0; i < 3; i++)
         buf[15 + i] = (uint8_t)(int8_t)(g_sat.gyro[i] * 2);
     buf[18] = g_sat.pl_mode; buf[19] = g_sat.pl_err;
@@ -96,7 +96,7 @@ void comm_queue_beacon(void)
     ax25_send_ui(buf, 24);
 }
 
-/* 把文件加入下行队列 */
+/* Enqueue file for downlink */
 int comm_queue_file(uint32_t file_id, uint16_t total_chunks)
 {
     if (dl_count >= DL_MAX) return -1;
@@ -107,13 +107,13 @@ int comm_queue_file(uint32_t file_id, uint16_t total_chunks)
     return 0;
 }
 
-/* 处理地面REQ_MISSING: 重排某文件的发送块序 */
+/* Handle ground REQ_MISSING: reorder chunk transmission for a file */
 void comm_req_missing(uint32_t file_id, const uint16_t *missing, uint16_t n)
 {
-    /* 简化: 将缺失块压入优先队列, 下一轮先发 */
+    /* Simplified: prioritize missing chunks for next transmission round */
     for (int i = 0; i < dl_count; i++) {
         if (dl_queue[i].file_id == file_id && n > 0) {
-            dl_queue[i].next_chunk = missing[0];  /* 从首个缺失块继续 */
+            dl_queue[i].next_chunk = missing[0];  /* continue from first missing chunk */
         }
     }
 }
@@ -129,15 +129,15 @@ bool comm_downlink_done(void)
 }
 
 /**
- * 通信任务: 发射机占空比管理 + 队列轮询
- * 每次过境连续发送; 过热(通信板>60C)暂停60s
+ * communication task: transmitter duty-cycle management + queue polling
+ * transmit continuously per pass; pause 60s on overheat (comm board >60C)
  */
 void task_comm(void *arg)
 {
     TickType_t last = xTaskGetTickCount();
     for (;;) {
         if (g_sat.mode == MODE_DOWNLINK && dl_count > 0) {
-            /* 轮询队列, 每文件每次最多发50块后切换 */
+            /* Poll queue; send up to 50 chunks per file per turn before switching */
             int sent = 0;
             while (dl_queue[0].next_chunk < dl_queue[0].total && sent < 50) {
                 uint8_t pkt[220];
@@ -153,10 +153,10 @@ void task_comm(void *arg)
                 ax25_send_ui(pkt, 9 + n);
                 dl_queue[0].next_chunk++;
                 sent++;
-                vTaskDelay(pdMS_TO_TICKS(180));   /* ~9.6kbps节流 */
+                vTaskDelay(pdMS_TO_TICKS(180));   /* ~9.6kbps rate throttling */
             }
             if (dl_queue[0].next_chunk >= dl_queue[0].total) {
-                /* 该文件发完一轮, 移出队列等地面确认 */
+                /* one full file pass sent, remove from queue and wait for ground confirmation */
                 memmove(dl_queue, dl_queue + 1, sizeof(dl_queue) - sizeof(dl_queue[0]));
                 dl_count--;
                 if (dl_count == 0) {
@@ -165,19 +165,19 @@ void task_comm(void *arg)
                 }
             }
         }
-        /* 上行接收: 简化轮询 (中断驱动更佳) */
+        /* Uplink reception: simplified polling (interrupt-driven is better) */
         comm_rx_poll();
         vTaskDelayUntil(&last, pdMS_TO_TICKS(100));
     }
 }
 
-/* 上行命令处理 (通信板收到后转发OBC) */
+/* Uplink command handling (comm board receives then forwards to OBC) */
 void comm_rx_poll(void)
 {
     uint8_t b;
     while (HAL_UART_Receive(&huart1, &b, 1, 0) == HAL_OK) {
-        /* 简化: 收齐AX.25帧后解析; 实际实现用DMA+环形缓冲 */
-        /* 此处省略帧重组状态机, 见comm_rx.c完整实现位 */
+        /* Simplified: parse after full AX.25 frame; production uses DMA + ring buffer */
+        /* Frame reassembly state machine omitted here; see full implementation in comm_rx.c */
         (void)b;
     }
 }
