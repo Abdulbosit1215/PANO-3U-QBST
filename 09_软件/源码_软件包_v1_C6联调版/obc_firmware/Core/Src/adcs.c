@@ -1,10 +1,10 @@
 /**
- * PANO-3U - 姿态控制 (纯磁控)
- * 策略:
- *   阶段1 DETUMBLE: B-dot消旋, 目标 |ω| < 2 deg/s
- *   阶段2 IDLE: 维持慢自旋 1~2 deg/s (全景任务无需精确指向)
- * 执行器: 3轴磁力矩器 (DRV8837 PWM驱动, 最大磁矩 0.2 Am²/轴)
- * 敏感器: QMC5883L磁强计(主), MPU9250陀螺(辅助)
+ * PANO-3U - attitude control (magnetic-only)
+ * Strategy:
+ *   Phase 1 DETUMBLE: B-dot detumble, target |ω| < 2 deg/s
+ *   Phase 2 IDLE: keep slow spin 1~2 deg/s (panorama mission does not require precise pointing)
+ * Actuator: 3-axis magnetorquer (DRV8837 PWM drive, max magnetic dipole 0.2 Am²/axis)
+ * Sensors: QMC5883L magnetometer (primary), MPU9250 gyroscope (secondary)
  */
 #include "adcs.h"
 #include "main.h"
@@ -12,10 +12,10 @@
 #include "mpu9250.h"
 #include "drv8837.h"
 
-#define BDOT_GAIN      0.5f     /* 磁矩增益 Am² per (uT/s) */
-#define MAG_DIP_MAX    0.2f     /* 单轴最大磁矩 Am² */
-#define DETUMBLE_TGT   2.0f     /* 目标角速度 deg/s */
-#define DT             0.1f     /* 控制周期 10Hz */
+#define BDOT_GAIN      0.5f     /* dipole gain Am² per (uT/s) */
+#define MAG_DIP_MAX    0.2f     /* per-axis max dipole Am² */
+#define DETUMBLE_TGT   2.0f     /* target angular rate deg/s */
+#define DT             0.1f     /* control period 10Hz */
 
 static adcs_state_t state = ADCS_INIT;
 static float mtq_duty[3] = {0, 0, 0};
@@ -28,7 +28,7 @@ void adcs_init(void)
     state = ADCS_DETUMBLE;
 }
 
-/* 传感器读取 (task_hk调用, 1Hz) */
+/* sensor readout (called by task_hk at 1Hz) */
 void adcs_read_sensors(void)
 {
     qmc5883l_read(g_sat.mag);
@@ -36,8 +36,8 @@ void adcs_read_sensors(void)
 }
 
 /**
- * B-dot 算法: m = -K * dB/dt
- * 物理意义: 产生与磁场变化率相反的磁矩, 消耗转动动能
+ * B-dot algorithm: m = -K * dB/dt
+ * Physical meaning: produce dipole opposing magnetic-field rate change to dissipate rotational energy
  */
 static void bdot_step(void)
 {
@@ -45,15 +45,15 @@ static void bdot_step(void)
     for (int i = 0; i < 3; i++) {
         db[i] = (g_sat.mag[i] - g_sat.mag_prev[i]) / DT;
         g_sat.mag_prev[i] = g_sat.mag[i];
-        /* 磁矩指令 = -K * dB/dt, 限幅 */
+        /* dipole command = -K * dB/dt, with saturation */
         float m = -BDOT_GAIN * db[i];
         if (m >  MAG_DIP_MAX) m =  MAG_DIP_MAX;
         if (m < -MAG_DIP_MAX) m = -MAG_DIP_MAX;
-        mtq_duty[i] = m / MAG_DIP_MAX;   /* -1..+1, 符号=电流方向 */
+        mtq_duty[i] = m / MAG_DIP_MAX;   /* -1..+1, sign indicates current direction */
     }
 }
 
-/* 消旋完成判定: 三轴角速度均低于阈值 */
+/* detumble completion check: all three angular rates below threshold */
 static bool detumbled(void)
 {
     for (int i = 0; i < 3; i++)
@@ -70,12 +70,12 @@ void task_adcs(void *arg)
         case ADCS_DETUMBLE:
             bdot_step();
             if (detumbled()) {
-                state = ADCS_MISSION;    /* 进入任务态: 磁力矩器仅补偿扰动 */
+                state = ADCS_MISSION;    /* enter mission state: magnetorquer only compensates disturbances */
                 for (int i = 0; i < 3; i++) mtq_duty[i] = 0;
             }
             break;
         case ADCS_MISSION:
-            /* 任务态: 弱B-dot保持慢自旋, 防止扰动累积 */
+            /* mission state: weak B-dot keeps slow spin to prevent disturbance accumulation */
             bdot_step();
             for (int i = 0; i < 3; i++) mtq_duty[i] *= 0.3f;
             break;
@@ -83,7 +83,7 @@ void task_adcs(void *arg)
             state = ADCS_DETUMBLE;
             break;
         }
-        /* 输出到DRV8837: duty<0 反向 */
+        /* output to DRV8837: duty<0 means reverse */
         for (int i = 0; i < 3; i++)
             drv8837_set(i, mtq_duty[i]);
         vTaskDelayUntil(&last, pdMS_TO_TICKS((TickType_t)(DT * 1000)));

@@ -1,5 +1,5 @@
 /**
- * PANO-3U - 传感器驱动: QMC5883L磁强计 / MPU9250 IMU / INA226功率计
+ * PANO-3U - sensor drivers: QMC5883L magnetometer / MPU9250 IMU / INA226 power monitor
  */
 #include "main.h"
 
@@ -8,7 +8,7 @@
 void qmc5883l_init(void)
 {
     uint8_t cfg[2];
-    cfg[0] = 0x09; cfg[1] = 0x0D;   /* 寄存器09: 连续模式, 200Hz, ±8G */
+    cfg[0] = 0x09; cfg[1] = 0x0D;   /* register 09: continuous mode, 200Hz, ±8G */
     HAL_I2C_Master_Transmit(&hi2c1, QMC_ADDR, cfg, 2, 100);
 }
 void qmc5883l_read(float mag[3])
@@ -16,7 +16,7 @@ void qmc5883l_read(float mag[3])
     uint8_t reg = 0x00, d[6];
     HAL_I2C_Master_Transmit(&hi2c1, QMC_ADDR, &reg, 1, 100);
     if (HAL_I2C_Master_Receive(&hi2c1, QMC_ADDR, d, 6, 100) == HAL_OK) {
-        /* ±8G量程: 12000 LSB/G -> 0.00833 uT/LSB */
+        /* ±8G range: 12000 LSB/G -> 0.00833 uT/LSB */
         mag[0] = (int16_t)(d[1] << 8 | d[0]) * 0.00833f;
         mag[1] = (int16_t)(d[3] << 8 | d[2]) * 0.00833f;
         mag[2] = (int16_t)(d[5] << 8 | d[4]) * 0.00833f;
@@ -28,7 +28,7 @@ void qmc5883l_read(float mag[3])
 void mpu9250_init(void)
 {
     uint8_t w[2];
-    w[0] = 0x6B; w[1] = 0x00;   /* PWR_MGMT_1: 唤醒 */
+    w[0] = 0x6B; w[1] = 0x00;   /* PWR_MGMT_1: wake */
     HAL_I2C_Master_Transmit(&hi2c1, MPU_ADDR, w, 2, 100);
     w[0] = 0x1B; w[1] = 0x08;   /* GYRO_CONFIG: ±500dps */
     HAL_I2C_Master_Transmit(&hi2c1, MPU_ADDR, w, 2, 100);
@@ -49,11 +49,11 @@ void mpu9250_read_gyro(float gyro[3])
 static const uint8_t ina_addr[4] = {0x40 << 1, 0x41 << 1, 0x44 << 1, 0x45 << 1};
 void ina226_init(void)
 {
-    uint8_t cfg[3] = {0x00, 0x45, 0x27};   /* 配置: 平均x16, 1.1ms */
+    uint8_t cfg[3] = {0x00, 0x45, 0x27};   /* config: avg x16, 1.1ms */
     for (int i = 0; i < 4; i++)
         HAL_I2C_Master_Transmit(&hi2c1, ina_addr[i], cfg, 3, 100);
 }
-/* 读总线电压(0x02, 1.25mV/LSB) 和 电流(0x04, 校准后) */
+/* read bus voltage (0x02, 1.25mV/LSB) and current (0x04, post-calibration) */
 void ina226_read(int idx, uint16_t *mv, int16_t *ma)
 {
     uint8_t reg, d[2];
@@ -64,10 +64,10 @@ void ina226_read(int idx, uint16_t *mv, int16_t *ma)
     reg = 0x04;
     HAL_I2C_Master_Transmit(&hi2c1, ina_addr[idx], &reg, 1, 100);
     if (HAL_I2C_Master_Receive(&hi2c1, ina_addr[idx], d, 2, 100) == HAL_OK)
-        *ma = (int16_t)((d[0] << 8) | d[1]);   /* 校准寄存器按0.1mA/LSB设 */
+        *ma = (int16_t)((d[0] << 8) | d[1]);   /* calibration register set for 0.1mA/LSB */
 }
 
-/* ============ 电源遥测汇总 ============ */
+/* ============ power telemetry summary ============ */
 void eps_mon_update(void)
 {
     uint16_t mv; int16_t ma;
@@ -76,14 +76,14 @@ void eps_mon_update(void)
 }
 
 /* ============ DS18B20 (1-Wire PC6) ============ */
-/* 1-Wire时序驱动: 用GPIO位带+精确延时实现, 省略底层, 接口如下 */
-int8_t ds18b20_read(int idx);   /* 返回温度°C, 实现在 ds18b20.c */
+/* 1-Wire timing driver: implemented with GPIO bit-bang + precise delay; low-level omitted, interface below */
+int8_t ds18b20_read(int idx);   /* returns temperature °C, implemented in ds18b20.c */
 
 void thermal_update(void)
 {
     for (int i = 0; i < 6; i++)
         g_sat.temp[i] = ds18b20_read(i);
-    /* 电池加热: 电池<5°C且不在安全模式 -> 开加热; >8°C关 (迟滞) */
+    /* battery heating: battery <5°C and not SAFE mode -> on; >8°C off (hysteresis) */
     static bool heating = false;
     int8_t tb = g_sat.temp[0] < g_sat.temp[1] ? g_sat.temp[0] : g_sat.temp[1];
     if (!heating && tb < 5 && g_sat.mode != MODE_SAFE) { heater_force(true); heating = true; }
@@ -91,26 +91,26 @@ void thermal_update(void)
     if (g_sat.mode == MODE_SAFE && heating) { heater_force(false); heating = false; }
 }
 
-/* ============ 天线展开 (热刀) ============ */
+/* ============ antenna deployment (hot-cutter) ============ */
 void antenna_deploy(void)
 {
-    /* 双热刀冗余: DEPLOY_EN -> IRLML6344 -> 镍铬丝, 3s脉冲 */
+    /* dual hot-cutter redundancy: DEPLOY_EN -> IRLML6344 -> nichrome wire, 3s pulse */
     for (int attempt = 0; attempt < 3; attempt++) {
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
         HAL_Delay(3000);
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
         if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_5) == GPIO_PIN_SET) {
-            log_event(EVT_DEPLOY, attempt + 1);   /* 展开遥测开关确认 */
+            log_event(EVT_DEPLOY, attempt + 1);   /* deployment telemetry switch confirmation */
             return;
         }
         HAL_Delay(10000);
     }
-    log_event(EVT_ERROR, 0x40);   /* 展开失败, 留待地面处置 */
+    log_event(EVT_ERROR, 0x40);   /* deployment failed, leave for ground handling */
 }
 
 /* ============ RTC (DS3231 I2C2 0x68) ============ */
 uint32_t rtc_epoch(void)
 {
-    /* DS3231读出BCD时间转epoch, 实现在rtc.c; 简化返回uptime推算 */
-    return 1767225600UL + g_sat.uptime_s;   /* 基准2026-01-01 + 上电秒数 */
+    /* DS3231 BCD time to epoch conversion in rtc.c; simplified return based on uptime */
+    return 1767225600UL + g_sat.uptime_s;   /* baseline 2026-01-01 + uptime seconds */
 }

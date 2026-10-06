@@ -1,34 +1,38 @@
-# OBC 固件构建说明
+# OBC Firmware Build Guide
 
-## 工具链
-- STM32CubeMX 6.x (生成HAL骨架) + arm-none-eabi-gcc
-- 或 PlatformIO: `platform = ststm32`, `board = genericSTM32F405RG`
+## Toolchain
+- STM32CubeMX 6.x (HAL skeleton generation) + `arm-none-eabi-gcc`
+- Or PlatformIO: `platform = ststm32`, `board = genericSTM32F405RG`
 
-## 目录
+## Directory Layout
+
 ```
 Core/Src/
-  main.c          主程序+任务
-  obc_fsm.c       模式状态机
-  adcs.c          B-dot消旋
-  comm.c          AX.25+下行队列
-  payload_mgr.c   CM4协议+拍摄计划
-  link_proto.c    板间帧编解码
-  drivers.c       QMC5883L/MPU9250/INA226/DS18B20/热控/天线
-  misc_drivers.c  DRV8837/看门狗/W25Q128日志
-Core/Inc/         对应头文件 (位号/寄存器地址与电子系统规格书一致)
+  main.c          Main program + tasks
+  obc_fsm.c       Mode state machine
+  adcs.c          B-dot detumbling
+  comm.c          AX.25 + downlink queue
+  payload_mgr.c   CM4 protocol + imaging schedule
+  link_proto.c    Inter-board frame encode/decode
+  drivers.c       QMC5883L/MPU9250/INA226/DS18B20/thermal/antenna
+  misc_drivers.c  DRV8837/watchdog/W25Q128 logging
+Core/Inc/         Matching headers (reference IDs/register addresses align with electrical spec)
 ```
 
-## 构建
+## Build
+
 ```bash
-# CubeMX方式: 用 PANO-3U.ioc 生成工程后替换Core/Src
+# CubeMX flow: generate project from PANO-3U.ioc, then replace Core/Src
 arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
   -O2 -DUSE_HAL_DRIVER -DSTM32F405xx ...
-# PlatformIO方式:
+
+# PlatformIO flow:
 pio run -e obc
 ```
 
-## 关键配置
-- FreeRTOS: 4任务 (comm>adcs>hk>payload), 堆栈见main.c
-- HSE 8MHz → PLL → 168MHz, SysTick 1kHz
-- UART1=9600(通信板), UART2=115200(CM4), 均DMA+空闲中断
-- Flash: 前64KB bootloader(预留IAP), 应用从0x08010000
+## Key Configuration
+
+- FreeRTOS: 4 tasks (`comm > adcs > hk > payload`), stack config in `main.c`
+- Clock: HSE 8 MHz → PLL → 168 MHz, SysTick 1 kHz
+- UART1 = 9600 (comm board), UART2 = 115200 (CM4), both DMA + idle interrupt
+- Flash map: first 64 KB reserved for bootloader/IAP, app starts at `0x08010000`

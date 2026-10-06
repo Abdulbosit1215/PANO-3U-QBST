@@ -1,17 +1,17 @@
-"""OBC<->CM4 链路层: HDLC风格帧 + CRC16-CCITT
-帧: [0x7E][CMD][LEN][PAYLOAD][CRC16_lo][CRC16_hi][0x7E], 0x7D转义
+"""OBC<->CM4 link layer: HDLC-style framing + CRC16-CCITT.
+Frame: [0x7E][CMD][LEN][PAYLOAD][CRC16_lo][CRC16_hi][0x7E], 0x7D escaping
 """
 import struct
 
 FLAG = 0x7E
 ESC = 0x7D
 
-# 指令码 (OBC->CM4)
+# Command codes (OBC->CM4)
 CMD_PING, CMD_TIME, CMD_SHOOT = 0x01, 0x02, 0x03
 CMD_VID_START, CMD_VID_STOP, CMD_TIMELAPSE = 0x04, 0x05, 0x06
 CMD_STATUS, CMD_FLIST, CMD_FPREP, CMD_SHUTDOWN = 0x07, 0x08, 0x09, 0x0A
 CMD_PARAM = 0x10
-# 应答码 (CM4->OBC)
+# Response codes (CM4->OBC)
 RSP_ACK, RSP_STATUS, RSP_FLIST, RSP_FPREP = 0x81, 0x87, 0x88, 0x89
 
 
@@ -38,7 +38,7 @@ def encode(cmd: int, payload: bytes = b"") -> bytes:
 
 
 class Decoder:
-    """流式解码器: 逐字节feed, 收满一帧回调"""
+    """Streaming decoder: feed byte-by-byte and callback on full frame."""
     def __init__(self, on_frame):
         self.buf = bytearray()
         self.in_frame = False
@@ -67,11 +67,11 @@ class Decoder:
         body, got = raw[:-2], struct.unpack("<H", raw[-2:])[0]
         if crc16(body) == got:
             self.on_frame(body[0], body[2:2 + body[1]])
-        # CRC错帧静默丢弃 (链路层重试由上层超时处理)
+        # Silently drop CRC-corrupted frames (upper layer handles timeout/retry)
 
 
 class UartLink:
-    """CM4侧: 串口收发线程"""
+    """CM4 side UART send/receive wrapper."""
     def __init__(self, port, baud, on_cmd):
         import serial
         self.ser = serial.Serial(port, baud, timeout=0.1)

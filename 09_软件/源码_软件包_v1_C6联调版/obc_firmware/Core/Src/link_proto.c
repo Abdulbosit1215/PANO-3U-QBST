@@ -1,6 +1,6 @@
 /**
- * 板间链路协议 (与 payload_cm4/link.py 对应)
- * 帧: [0x7E][CMD][LEN][PAYLOAD][CRC16-CCITT LE][0x7E], 0x7D转义
+ * Inter-board link protocol (aligned with payload_cm4/link.py)
+ * Frame: [0x7E][CMD][LEN][PAYLOAD][CRC16-CCITT LE][0x7E], 0x7D escaping
  */
 #include "link_proto.h"
 
@@ -49,5 +49,5 @@ void link_dec_feed(LinkDec_t *d, uint8_t b)
     if (b == 0x7D) { d->esc = true; return; }
     if (d->esc) { b ^= 0x20; d->esc = false; }
     if (d->n < sizeof(d->buf)) d->buf[d->n++] = b;
-    else d->n = 0;   /* 溢出丢帧 */
+    else d->n = 0;   /* overflow: drop frame */
 }

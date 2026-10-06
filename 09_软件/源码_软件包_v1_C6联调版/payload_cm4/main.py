@@ -1,6 +1,6 @@
-"""PANO-3U 载荷主程序 (CM4)
-状态机: BOOT -> IDLE -> (SHOOTING | RECORDING | TIMELAPSE) -> IDLE -> SHUTDOWN
-运行: python3 main.py  (systemd服务 pano3u-payload.service)
+"""PANO-3U payload main program (CM4).
+State machine: BOOT -> IDLE -> (SHOOTING | RECORDING | TIMELAPSE) -> IDLE -> SHUTDOWN
+Run: python3 main.py  (systemd service: pano3u-payload.service)
 """
 import os, time, threading, struct, signal, sys
 from config import cfg
@@ -33,7 +33,7 @@ class PayloadApp:
         else:
             self.link = None
 
-    # ---------------- 指令处理 ----------------
+    # ---------------- Command handling ----------------
     def on_cmd(self, cmd, pl):
         if cmd == L.CMD_PING:
             self.last_ping = time.time()
@@ -70,7 +70,7 @@ class PayloadApp:
                 self.link.send(L.RSP_FPREP, struct.pack("<IHHI",
                     info["file_id"], info["total"], info["chunk_size"], info["crc32"]))
             else:
-                self.link.send(L.RSP_ACK, bytes([cmd, 3]))   # err: 存储
+                self.link.send(L.RSP_ACK, bytes([cmd, 3]))   # err: storage
         elif cmd == L.CMD_PARAM and len(pl) >= 5:
             keymap = {1: ("ae_exposure_us", "<I"), 2: ("analogue_gain", "<f"),
                       3: ("video_bitrate_mbps", "<I"), 4: ("jpeg_quality", "<I")}
@@ -84,7 +84,7 @@ class PayloadApp:
             self.link.send(L.RSP_ACK, bytes([cmd, 0]))
             self._shutdown()
 
-    # ---------------- 任务 ----------------
+    # ---------------- Tasks ----------------
     def _shoot_task(self, burst, interval):
         if self.mode != MODE_IDLE:
             return
@@ -102,7 +102,7 @@ class PayloadApp:
                     paths[idx] = (jp, jpg)
                     if dng:
                         os.rename(dng, os.path.join(self.store.data_dir, dng))
-                # 拼接全景
+                # Stitch panorama
                 if 0 in paths and 1 in paths and self.stitcher:
                     i0 = cv2.imdecode(np.frombuffer(paths[0][1], np.uint8), cv2.IMREAD_COLOR)
                     i1 = cv2.imdecode(np.frombuffer(paths[1][1], np.uint8), cv2.IMREAD_COLOR)
@@ -110,7 +110,7 @@ class PayloadApp:
                     pp = os.path.join(self.store.data_dir, f"pano_{ts}.jpg")
                     cv2.imwrite(pp, pano, [cv2.IMWRITE_JPEG_QUALITY, cfg["jpeg_quality"]])
                     self.store.register(pp, "pano_jpg")
-                    # 快视图 (小尺寸, 优先下传)
+                    # Quick preview (smaller image, prioritized for downlink)
                     prev = cv2.resize(pano, (cfg["preview_width"], cfg["preview_width"] // 2))
                     pv = os.path.join(self.store.data_dir, f"preview_{ts}.jpg")
                     cv2.imwrite(pv, prev, [cv2.IMWRITE_JPEG_QUALITY, 80])
@@ -157,19 +157,19 @@ class PayloadApp:
             self.mode, self.cam.ok[0], self.cam.ok[1], 0,
             t0, t1, self.store.free_mb(), 0,
             1 if self.cam.recording else 0,
-            len(self.store.index["files"]), int(time.monotonic()-_T0), self.last_err)  # uptime(s), 非纪元
+            len(self.store.index["files"]), int(time.monotonic()-_T0), self.last_err)  # uptime(s), monotonic not epoch
 
-    # ---------------- 主循环 ----------------
+    # ---------------- Main loop ----------------
     def run(self):
         print("[payload] PANO-3U payload started, ON_TARGET =", ON_TARGET)
         while not self._stop:
             if self.link:
                 self.link.poll()
-            # 视频到时自动停
+            # Auto-stop video when duration expires
             if self.mode == MODE_RECORDING and self.video_deadline \
                     and time.time() > self.video_deadline:
                 self._stop_video()
-            # 心跳超时: 不自动关机(OBC侧负责断电), 仅记录
+            # Heartbeat timeout: do not auto-shutdown (OBC handles power cut), only record error
             if time.time() - self.last_ping > cfg["heartbeat_timeout_s"] * 6:
                 self.last_err = 8
             time.sleep(0.02)
